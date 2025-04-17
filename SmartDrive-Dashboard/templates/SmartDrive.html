@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SmartDrive Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBgSvrNqp9mWnReeot23uA7rZhTdPZmrCA"></script>
+    <style>
+        .status-indicator {
+            width: 12px; height: 12px; border-radius: 50%; margin-right: 8px;
+        }
+        .online { background-color: #10b981; }
+        .offline { background-color: #ef4444; }
+        .car-state {
+            padding: 12px; border-radius: 8px; font-weight: 600;
+            text-align: center; margin-top: 15px;
+        }
+        .state-idle { background-color: #e2e8f0; color: #475569; }
+        .state-active { background-color: #d1fae5; color: #065f46; }
+        .state-warning { background-color: #fef3c7; color: #92400e; }
+        .state-danger { background-color: #fee2e2; color: #b91c1c; }
+        .video-container {
+            position: relative; width: 100%; padding-bottom: 56.25%;
+            background-color: #000; border-radius: 8px; overflow: hidden;
+        }
+        .video-feed {
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%; object-fit: cover;
+        }
+        .map-container { height: 300px; border-radius: 8px; overflow: hidden; }
+        .gps-value { color: #3b82f6; font-weight: 600; }
+        .log-entry-critical { background-color: #fee2e2; }
+        .log-entry-warning { background-color: #fef3c7; }
+        .log-entry-info { background-color: #ecfdf5; }
+        .detection-critical { background-color: #fee2e2; }
+        .detection-warning { background-color: #fef3c7; }
+        .distance-safe { color: #10b981; }
+        .distance-warning { color: #d97706; }
+        .distance-danger { color: #dc2626; }
+    </style>
+</head>
+<body class="bg-gray-50 p-6">
+    <div class="max-w-6xl mx-auto">
+        <!-- Header -->
+        <div class="bg-white rounded-lg shadow p-6 mb-6">
+            <div class="flex justify-between items-center">
+                <div class="flex items-center">
+                    <i class="fas fa-car text-2xl text-blue-500 mr-3"></i>
+                    <h1 class="text-2xl font-bold text-gray-800">SmartDrive Dashboard</h1>
+                </div>
+                <div class="flex space-x-6">
+                    <div class="flex items-center">
+                        <span class="status-indicator online"></span>
+                        <span class="text-sm font-medium">SYSTEM</span>
+                    </div>
+                    <div class="flex items-center">
+                        <span class="status-indicator online"></span>
+                        <span class="text-sm font-medium">CAMERA</span>
+                    </div>
+                    <div class="flex items-center">
+                        <span class="status-indicator online"></span>
+                        <span class="text-sm font-medium">GPS</span>
+                    </div>
+                    <div class="flex items-center">
+                        <span class="status-indicator online"></span>
+                        <span class="text-sm font-medium">ULTRASONIC</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Video Feed -->
+            <div class="lg:col-span-2 bg-white rounded-lg shadow p-6">
+                <h2 class="text-lg font-semibold text-blue-500 mb-4">
+                    <i class="fas fa-video mr-2"></i> LIVE CAMERA FEED
+                </h2>
+                <div class="video-container">
+                    <img id="video-feed" class="video-feed" src="{{ url_for('video_feed') }}">
+                </div>
+                
+                <!-- Detection Display -->
+                <div class="mt-6">
+                    <h2 class="text-lg font-semibold text-blue-500 mb-4">
+                        <i class="fas fa-eye mr-2"></i> OBJECT DETECTIONS
+                    </h2>
+                    <div class="bg-white border rounded-lg overflow-hidden">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Object</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Confidence</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Timestamp</th>
+                                </tr>
+                            </thead>
+                            <tbody id="detections-body" class="bg-white divide-y divide-gray-200">
+                                {% for detection in detections %}
+                                <tr class="{{ 'detection-warning' if detection.label in ['car', 'truck'] else 'detection-critical' }}">
+                                    <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                        <i class="fas fa-{{ 'car' if detection.label in ['car', 'truck'] else 'user' }} mr-2"></i>
+                                        {{ detection.label|capitalize }}
+                                    </td>
+                                    <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        {{ "%.2f"|format(detection.confidence * 100) }}%
+                                    </td>
+                                    <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        {{ detection.timestamp }}
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="3" class="px-4 py-4 text-center text-gray-400 italic">No objects detected</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Status Panel -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h2 class="text-lg font-semibold text-blue-500 mb-4">
+                    <i class="fas fa-car mr-2"></i> CAR STATUS
+                </h2>
+                
+                <div id="car-state" class="car-state state-idle">
+                    <i class="fas fa-info-circle mr-2"></i> CURRENT STATUS: IDLE
+                </div>
+                
+                <div class="mt-6">
+                    <h3 class="text-md font-semibold mb-2">System Stats</h3>
+                    <div class="grid grid-cols-2 gap-4 mb-4">
+                        <div class="bg-blue-50 p-4 rounded-lg">
+                            <div class="text-sm text-gray-500">Uptime</div>
+                            <div class="font-bold text-blue-600 text-xl" id="uptime">00:00:00</div>
+                        </div>
+                        <div class="bg-green-50 p-4 rounded-lg">
+                            <div class="text-sm text-gray-500">Detection Status</div>
+                            <div class="font-bold text-green-600 text-xl" id="detection-status">Active</div>
+                        </div>
+                    </div>
+                    
+                    <h3 class="text-md font-semibold mb-2">Distance Monitoring</h3>
+                    <div class="bg-gray-50 p-4 rounded-lg mb-4">
+                        <div class="text-sm text-gray-500">Obstacle Distance</div>
+                        <div class="font-bold text-xl" id="distance-value">--</div>
+                        <div class="text-xs mt-1" id="distance-status">Sensor initializing...</div>
+                    </div>
+                    
+                    <h3 class="text-md font-semibold mb-2">Detection Summary</h3>
+                    <div class="space-y-2">
+                        <div>Current Objects: <span class="font-semibold" id="current-objects">0</span></div>
+                        <div>Last Detection: <span class="font-semibold" id="last-detection">None</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- GPS and Log Panel -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+            <!-- GPS Map -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h2 class="text-lg font-semibold text-blue-500 mb-4">
+                    <i class="fas fa-map-marked-alt mr-2"></i> LIVE GPS TRACKING
+                </h2>
+                <div class="map-container" id="map"></div>
+            </div>
+
+            <!-- System Log -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-semibold text-blue-500">
+                        <i class="fas fa-clipboard-list mr-2"></i> SYSTEM EVENT LOG
+                    </h2>
+                    <div>
+                        <a href="/download_log" class="text-sm bg-blue-500 hover:bg-blue-600 text-white py-1 px-3 rounded mr-2">
+                            <i class="fas fa-download mr-1"></i> Export Detections
+                        </a>
+                        <button onclick="clearLogs()" class="text-sm bg-gray-100 hover:bg-gray-200 py-1 px-3 rounded">
+                            <i class="fas fa-trash-alt mr-1"></i> Clear
+                        </button>
+                    </div>
+                </div>
+                <div class="overflow-y-auto max-h-96">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
+                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Message</th>
+                            </tr>
+                        </thead>
+                        <tbody id="log-body" class="bg-white divide-y divide-gray-200">
+                            <tr>
+                                <td colspan="3" class="px-4 py-4 text-center text-gray-400 italic">System initialized...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // System Variables
+        let startTime = new Date();
+        let logEntries = [];
+        let map, marker;
+        let currentLat = 18.5204;
+        let currentLng = 73.8567;
+
+        // Initialize Google Maps
+        function initMap() {
+            map = new google.maps.Map(document.getElementById("map"), {
+                center: { lat: currentLat, lng: currentLng },
+                zoom: 15,
+                mapTypeId: 'roadmap',
+                styles: [
+                    { featureType: "poi", stylers: [{ visibility: "off" }] },
+                    { featureType: "transit", stylers: [{ visibility: "off" }] }
+                ]
+            });
+            
+            marker = new google.maps.Marker({
+                position: { lat: currentLat, lng: currentLng },
+                map: map,
+                title: "Current Location",
+                icon: {
+                    url: "https://maps.google.com/mapfiles/ms/icons/blue-dot.png"
+                }
+            });
+            
+            addLogEntry("System", "GPS tracking initialized", "info");
+        }
+
+        // Update Detections
+        function updateDetections() {
+            fetch('/detections')
+                .then(response => response.json())
+                .then(data => {
+                    const detectionsBody = document.getElementById('detections-body');
+                    detectionsBody.innerHTML = '';
+                    
+                    if (data.length === 0) {
+                        detectionsBody.innerHTML = `
+                            <tr>
+                                <td colspan="3" class="px-4 py-4 text-center text-gray-400 italic">No objects detected</td>
+                            </tr>
+                        `;
+                        document.getElementById('current-objects').textContent = '0';
+                        return;
+                    }
+                    
+                    document.getElementById('current-objects').textContent = data.length;
+                    document.getElementById('last-detection').textContent = new Date().toLocaleTimeString();
+                    
+                    data.forEach(detection => {
+                        const row = document.createElement('tr');
+                        const icon = detection.label === 'person' ? 'user' : 'car';
+                        const rowClass = ['car', 'truck'].includes(detection.label) ? 'detection-warning' : 'detection-critical';
+                        
+                        row.className = rowClass;
+                        row.innerHTML = `
+                            <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                <i class="fas fa-${icon} mr-2"></i>
+                                ${detection.label.charAt(0).toUpperCase() + detection.label.slice(1)}
+                            </td>
+                            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                                ${(detection.confidence * 100).toFixed(2)}%
+                            </td>
+                            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                                ${new Date(detection.timestamp).toLocaleTimeString()}
+                            </td>
+                        `;
+                        detectionsBody.appendChild(row);
+                    });
+                    
+                    // Add to log if new detections found
+                    if (data.length > 0) {
+                        const objects = [...new Set(data.map(d => d.label))].join(', ');
+                        addLogEntry("Detection", `Detected: ${objects}`, "warning");
+                    }
+                });
+        }
+
+        // Update Distance
+        function updateDistance() {
+            fetch('/distance')
+                .then(response => response.json())
+                .then(data => {
+                    const distanceElement = document.getElementById('distance-value');
+                    const statusElement = document.getElementById('distance-status');
+                    const distance = data.distance_meters;
+                    
+                    if (distance === undefined || distance === null) {
+                        distanceElement.textContent = '--';
+                        statusElement.textContent = 'Sensor error';
+                        statusElement.className = 'text-xs mt-1 text-red-500';
+                        return;
+                    }
+                    
+                    distanceElement.textContent = `${distance.toFixed(2)} m`;
+                    
+                    if (distance > 1.0) {
+                        distanceElement.className = 'font-bold text-xl distance-safe';
+                        statusElement.textContent = 'Safe distance';
+                        statusElement.className = 'text-xs mt-1 text-green-500';
+                    } else if (distance > 0.4) {
+                        distanceElement.className = 'font-bold text-xl distance-warning';
+                        statusElement.textContent = 'Warning: Approaching obstacle';
+                        statusElement.className = 'text-xs mt-1 text-yellow-500';
+                    } else {
+                        distanceElement.className = 'font-bold text-xl distance-danger';
+                        statusElement.textContent = 'DANGER: Immediate stop required';
+                        statusElement.className = 'text-xs mt-1 text-red-500';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching distance:', error);
+                    document.getElementById('distance-value').textContent = '--';
+                    document.getElementById('distance-status').textContent = 'Sensor error';
+                    document.getElementById('distance-status').className = 'text-xs mt-1 text-red-500';
+                });
+        }
+
+        // Car Status Updates
+        function updateStatus() {
+            fetch('/status')
+                .then(response => response.json())
+                .then(data => {
+                    const stateElement = document.getElementById('car-state');
+                    let stateClass, stateText;
+                    
+                    switch(data.state) {
+                        case 'idle':
+                            stateClass = 'state-idle';
+                            stateText = '<i class="fas fa-pause mr-2"></i> CURRENT STATUS: IDLE';
+                            break;
+                        case 'accelerate':
+                            stateClass = 'state-active';
+                            stateText = '<i class="fas fa-car mr-2"></i> CURRENT STATUS: ACCELERATING';
+                            break;
+                        case 'brake':
+                            stateClass = 'state-danger';
+                            stateText = '<i class="fas fa-exclamation-triangle mr-2"></i> CURRENT STATUS: EMERGENCY BRAKING';
+                            break;
+                        default:
+                            stateClass = 'state-idle';
+                            stateText = '<i class="fas fa-question-circle mr-2"></i> CURRENT STATUS: UNKNOWN';
+                    }
+                    
+                    stateElement.className = `car-state ${stateClass}`;
+                    stateElement.innerHTML = stateText;
+                });
+        }
+
+        // Log Management
+        function addLogEntry(type, message, severity = 'info') {
+            const now = new Date();
+            const logEntry = {
+                timestamp: now.toLocaleTimeString(),
+                type: type,
+                message: message,
+                severity: severity,
+                fullTime: now
+            };
+            
+            logEntries.unshift(logEntry);
+            
+            const logBody = document.getElementById('log-body');
+            const newRow = document.createElement('tr');
+            
+            if (severity === 'warning') newRow.classList.add('log-entry-warning');
+            else if (severity === 'critical') newRow.classList.add('log-entry-critical');
+            else if (severity === 'info') newRow.classList.add('log-entry-info');
+            
+            newRow.innerHTML = `
+                <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-500">${logEntry.timestamp}</td>
+                <td class="px-4 py-2 whitespace-nowrap text-sm font-medium">${type}</td>
+                <td class="px-4 py-2 whitespace-nowrap text-sm">${message}</td>
+            `;
+            
+            if (logBody.firstChild.textContent.includes("initialized")) {
+                logBody.innerHTML = '';
+            }
+            
+            logBody.prepend(newRow);
+            
+            if (logEntries.length > 100) {
+                logEntries.pop();
+                if (logBody.children.length > 100) {
+                    logBody.removeChild(logBody.lastChild);
+                }
+            }
+        }
+
+        function clearLogs() {
+            logEntries = [];
+            document.getElementById('log-body').innerHTML = `
+                <tr>
+                    <td colspan="3" class="px-4 py-4 text-center text-gray-400 italic">Logs cleared</td>
+                </tr>
+            `;
+            addLogEntry("System", "Logs cleared by user", "info");
+        }
+
+        // Uptime Counter
+        function updateUptime() {
+            const now = new Date();
+            const diff = now - startTime;
+            const hours = Math.floor(diff / (1000 * 60 * 60)).toString().padStart(2, '0');
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60)).toString().padStart(2, '0');
+            const seconds = Math.floor((diff % (1000 * 60)) / 1000).toString().padStart(2, '0');
+            document.getElementById('uptime').textContent = `${hours}:${minutes}:${seconds}`;
+        }
+
+        // Initialize everything
+        window.onload = function() {
+            initMap();
+            updateStatus();
+            updateDetections();
+            updateDistance();
+            
+            // Set up intervals
+            setInterval(updateStatus, 2000);
+            setInterval(updateDetections, 1000);
+            setInterval(updateDistance, 500);
+            setInterval(updateUptime, 1000);
+            
+            // Initial log entries
+            setTimeout(() => {
+                addLogEntry("System", "Dashboard initialized successfully", "info");
+                addLogEntry("Detection", "Object detection system ready", "info");
+                addLogEntry("Sensors", "Ultrasonic distance sensor online", "info");
+            }, 500);
+        };
+    </script>
+</body>
+</html>

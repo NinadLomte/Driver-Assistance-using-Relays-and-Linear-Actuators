@@ -1,0 +1,6 @@
+flask
+opencv-python
+ultralytics
+picamera2
+RPi.GPIO
+torch
