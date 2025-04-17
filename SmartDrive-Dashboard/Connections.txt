@@ -1,0 +1,99 @@
+# 🔌 Hardware Connections – Driver Assistance System
+
+This document describes the wiring and hardware connections used in the SmartDrive (Driver Assistance) system powered by Raspberry Pi 4B.
+
+---
+
+## ⚙️ Relay & Motor Control (via GPIO)
+
+Used to control motion via linear actuators (e.g., acceleration, braking):
+
+| Relay   | GPIO Pin | Function          | State when LOW |
+| ------- | -------- | ----------------- | -------------- |
+| Relay 1 | GPIO 17  | Forward (Motor A) | Activated      |
+| Relay 2 | GPIO 18  | Reverse (Motor A) | Activated      |
+| Relay 3 | GPIO 22  | Forward (Motor B) | Activated      |
+| Relay 4 | GPIO 23  | Reverse (Motor B) | Activated      |
+
+> **Note:** All relays are initially set to `HIGH` (inactive) to prevent accidental motion during startup.
+
+---
+
+## 📷 PiCamera2 – Camera Feed
+
+- **Connected via:** CSI Ribbon Cable to Raspberry Pi Camera Port
+- **Configured using:** `picamera2` in Python
+- **Video Resolution:** 1280x720 @ 30 FPS
+
+---
+
+## 🧠 Object Detection – YOLOv8
+
+- **Library:** Ultralytics YOLO (`ultralytics`)
+- **Classes Tracked:** `person`, `car`, `truck`, `motorcycle`, `bicycle`
+- **Runs on:** CPU or GPU (if available)
+
+---
+
+## 🧲 Ultrasonic Sensor – Distance Detection
+
+**Example: HC-SR04 (or compatible)**
+
+| Pin  | Connected to |
+| ---- | ------------ |
+| VCC  | 5V           |
+| GND  | GND          |
+| TRIG | GPIO 5       |
+| ECHO | GPIO 6       |
+
+> Update the GPIO pins in the code if different from above.
+
+---
+
+## 📍 Optional: GPS Module (for Map Integration)
+
+**Example: Neo-6M GPS**
+
+| GPS Pin | Raspberry Pi Pin  |
+| ------- | ----------------- |
+| VCC     | 3.3V or 5V        |
+| GND     | GND               |
+| TX      | GPIO 15 (UART RX) |
+| RX      | GPIO 14 (UART TX) |
+
+> Don’t forget to enable UART via `raspi-config`.
+
+---
+
+## 🧾 Summary Block Diagram (Text Format)
+
+```
+          +----------------------+
+          |     Raspberry Pi     |
+          +----------------------+
+                  | | | |
+                  | | | +---> Relay 1-4 (GPIO 17,18,22,23)
+                  | | +-----> Ultrasonic (TRIG/ECHO)
+                  | +-------> PiCamera2 (CSI)
+                  +---------> GPS (UART, optional)
+
+          Relays → Actuators
+          PiCamera2 → Object Detection (YOLO)
+          Ultrasonic → Distance Monitoring
+          GPS → Map Feed (Google Maps API)
+```
+
+---
+
+## ✅ Tips
+
+- Always use a **separate power supply** for actuators/relays to avoid damaging the Pi.
+- Use a **logic-level shifter** or transistor if the sensor operates at 5V logic.
+- GPIO pins should be **cleaned up with `GPIO.cleanup()`** when the app stops.
+
+---
+
+### 📥 Contribution
+
+Feel free to expand this doc based on your specific wiring and components.
+
