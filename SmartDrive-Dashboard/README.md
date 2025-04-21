@@ -1,8 +1,8 @@
-# SmartDrive Dashboard 🚗📡
+ SmartDrive using Raspberry Pi 4B
 
 SmartDrive is an intelligent vehicle monitoring dashboard built using Flask, YOLOv8, Raspberry Pi Camera, and ultrasonic sensors. It provides live video feeds, real-time object detection, distance monitoring, GPS mapping, and system logging – all through a sleek dashboard interface.
 
-## 📸 Features
+  Features
 
 - Live camera feed from Raspberry Pi
 - YOLOv8 object detection (person, car, truck, etc.)
@@ -12,7 +12,7 @@ SmartDrive is an intelligent vehicle monitoring dashboard built using Flask, YOL
 - Live GPS tracking via Google Maps
 - Responsive UI built with Tailwind CSS
 
-## 🛠️ Requirements
+ Requirements
 
 - Raspberry Pi OS
 - Python 3.7+
@@ -22,7 +22,7 @@ SmartDrive is an intelligent vehicle monitoring dashboard built using Flask, YOL
 - YOLOv8 (via `ultralytics`)
 - GPIO support
 
-## 🔧 Setup Instructions
+ Setup Instructions
 
 1. **Clone the repo**
     ```bash
@@ -43,7 +43,7 @@ SmartDrive is an intelligent vehicle monitoring dashboard built using Flask, YOL
 4. **Access the dashboard**
     Open your browser and go to: `http://<raspberry-pi-ip>:5000`
 
-## 🧠 Authentication
+ Authentication
 
 - Username: `ninad`
 - Password: `ninad`
